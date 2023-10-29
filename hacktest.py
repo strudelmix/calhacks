@@ -1,5 +1,9 @@
 import time
+import asyncio
 
+import pandas as pd
+from hume import HumeStreamClient, StreamSocket
+from hume.models.config import FaceConfig
 import numpy
 import streamlit as st
 import torch
@@ -37,10 +41,8 @@ from stegtest import genData, encode
 
 # mindsdb 1k + offer
 # 2k for convex
-# 1k for xrpl
 # 2k for intersystems
 # ai x crypto $3.5k
-# 1k hume + meet n greet ceo
 # wispr interview
 # 3k axelar
 # 1.5k reflex
@@ -51,6 +53,8 @@ from stegtest import genData, encode
 base_dir = os.path.dirname(os.path.abspath(__file__))
 weights_dir = os.path.join(base_dir, 'CNNDetection', 'weights', 'blur_jpg_prob0.5.pth')
 dlib_dir = os.path.join(base_dir, 'CNNDetection', 'dlib_model', 'shape_predictor_68_face_landmarks.dat')
+test_img = os.path.join(base_dir, 'test.png')
+placeholder_img = np.zeros((100, 100, 3), np.uint8)
 use_cpu = False
 
 front_face_detector = dlib.get_frontal_face_detector()
@@ -112,8 +116,8 @@ def cut_head(imgs, point):
     return imgs[y1_:y2_, x1_:x2_, :]
 
 
-# takes about 20 seconds to generate both sending and destination wallet. In practice and as a prototype it is fine, but when showing to judges
-# I'd rather use static addresses I have already generated for the wallets.
+# takes about 20 seconds to generate both sending and destination wallet. In practice and as a prototype it is fine, but for judging
+# I'd rather use static addresses I have already generated for the wallets once and am keeping their IDs
 # seed = ''
 # sending_wallet = get_account(seed)
 # destination_wallet = get_account(seed)
@@ -126,28 +130,54 @@ sending_id = 'rBxmj78N2cCYPkKfpP55zJqFDYfaaRqGxk'
 destination_id = 'rBJDj5c12jZsm1Yt7UyTYSv6rsxpyrfxhy'
 
 
-
 # def placeholder():
 #     st.write("Sender address: " + sending_id)
- #   st.write("Destination address: " + destination_id)
+#   st.write("Destination address: " + destination_id)
 
 
-def explain_hash(hash_value, run):
+def explain_hash(hash_value, run, bounding_box, steg):
     if run:
         if not hash_value:
             st.write("")
         else:
             st.write(
-                str(hash_value) + " is the ledger hash value. This hash value is steganographically embedded into the live video feed using Least Significant Bits.")
+                str(hash_value) + "is the ledger hash value. This hash value is steganographically embedded into the "
+                                  "live video feed using Least Significant Bits, as seen in the code.")
+            if bounding_box:
+                st.write(
+                    "Bounding boxes will not show in the actual prototype. This is simply to have better visualisation in "
+                    "what the model is doing.")
+            if steg:
+                st.write(
+                    "The hash value embedding will not show in the actual prototype. This is simply to have better visualisation in "
+                    "what the model is doing. Here, the pixels are changed to red.")
 
 
-def main(use_cpu=use_cpu, number_of_samples=1, rotate_image=False, bounding_box=False):
+# async def main3():
+#    client = HumeStreamClient("hyKUPUAgDDzg4lBNoHVbRpU4U6HtgTvtoX75cDZJrHkhplcE")
+#    configs = [FaceConfig(identify_faces=False)]
+#    async with client.connect(configs) as socket:
+#        socket: StreamSocket
+#        if hack1() is not None:
+#            result = await socket.send_file(hack1())
+#            emotions = result["face"]["predictions"][0]["emotions"][0]["name"]
+#        # prob = result["face"]["predictions"][0]["emotions"]
+#        return emotions
+#asyncio.run(main3())
+
+
+def hack1(use_cpu=use_cpu, number_of_samples=1, rotate_image=False, bounding_box=False, steg=False):
     st.title("Webcam Live Feed")
     FRAME_WINDOW = st.image([])
     # local webcam only
     camera = cv2.VideoCapture(0)
 
+    # my_table = st.table()
+
     hash_value = send_xrp()
+    bounding_check = st.checkbox('Activate bounding box')
+    if bounding_check:
+        bounding_box = True
     run = st.checkbox('Run')
     if run:
         placeholder = st.text("Securing connection between parties...")
@@ -158,27 +188,25 @@ def main(use_cpu=use_cpu, number_of_samples=1, rotate_image=False, bounding_box=
             st.write("ending connection...")
             return
 
-    explain_hash(hash_value, run)
+    explain_hash(hash_value, run, bounding_box, steg)
+    image = cv2.cvtColor(placeholder_img, cv2.COLOR_BGR2RGB)
 
-
+    # i = 0
     with st.empty():
         while run:
-
             _, image = camera.read()
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             face_info = lib.align(image, front_face_detector, lmark_predictor)
 
+            bbox = []
             # Samples
-            if (len(face_info) > 0):
+            if len(face_info) > 0:
+
                 output_text = str(len(face_info)) + ' faces are detected'
                 # st.write(len(face_info), 'faces are detected')
 
-                bbox = []
                 for k in range(len(face_info)):  # for loop on number of detected faces
                     _, point = face_info[k]
-
-                    if bounding_box:
-                        bbox.append((*np.min(point, axis=0), *np.max(point, axis=0)))
 
                     # for i in range(number_of_samples):
                     #    if number_of_samples > 1:
@@ -207,25 +235,43 @@ def main(use_cpu=use_cpu, number_of_samples=1, rotate_image=False, bounding_box=
                         # if sample size is more than 1, do below but i dont wanna
                         # also am not appending the probability prediction for every frame into a list, keep it simple
                         # probabilities.append(mean(_results))
-                # if bounding_box:
-                #    with open('bound_box', 'w') as f:
-                #        f.write(str(dict(zip(bbox, probabilities))))
+                    # if bounding_box:
+                    #    with open('bound_box', 'w') as f:
+                    #        f.write(str(dict(zip(bbox, probabilities))))
+                    if bounding_box:
+                        x_min, y_min = point.min(axis=0)
+                        x_max, y_max = point.max(axis=0)
+
+                        minc = (x_min, y_min)
+                        maxc = (x_max, y_max)
+                        bbox.append((minc, maxc))
+
             if (len(face_info) == 0):
                 # output_text = 'warning! No face has been found!'
                 st.write('warning! No face has been found!')
 
             # steganography of hash_value here
             # list of binary code for hash value
-            encoded_PIL = encode(image, hash_value)
+            encoded_PIL = encode(image, hash_value, steg)
             open_cv_image = numpy.array(encoded_PIL)
+
+            for b in bbox:
+                minpt = b[0]
+                maxpt = b[1]
+                open_cv_image = cv2.rectangle(open_cv_image, minpt, maxpt, color=(0, 255, 0), thickness=2)
 
             FRAME_WINDOW.image(open_cv_image)
 
+
+
+            #if i is not 30:
+            #    i = i + 1
+            #else:
+            #    i = 0
+            #    return image
+            #    df1 = pd.DataFrame(emotion)#
+            #
+            #    my_table.add_rows(df1)
+
         else:
             st.write('Play video feed')
-
-
-
-
-if __name__ == '__main__':
-    main()

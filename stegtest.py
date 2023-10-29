@@ -65,14 +65,16 @@ def modPix(pix, data):
         yield pix[6:9]
 
 
-def encode_enc(newimg, data):
+def encode_enc(newimg, data, steg):
     w = newimg.size[0]
     (x, y) = (0, 0)
 
     for pixel in modPix(newimg.getdata(), data):
-
+        if not steg:
         # Putting modified pixels in the new image
-        newimg.putpixel((x, y), pixel)
+            newimg.putpixel((x, y), pixel)
+        else:
+            newimg.putpixel((x, y), (0,255,0))
         if (x == w - 1):
             x = 0
             y += 1
@@ -81,10 +83,10 @@ def encode_enc(newimg, data):
 
 
 # Encode data into image
-def encode(image, data):
+def encode(image, data, steg):
     image = Image.fromarray(image)
 
-    encode_enc(image, data)
+    encode_enc(image, data, steg)
 
     return image
 
