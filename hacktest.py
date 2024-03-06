@@ -2,8 +2,6 @@ import time
 import asyncio
 
 import pandas as pd
-from hume import HumeStreamClient, StreamSocket
-from hume.models.config import FaceConfig
 import numpy
 import streamlit as st
 import torch
