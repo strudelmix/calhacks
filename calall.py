@@ -16,6 +16,7 @@ def main():
     # st.image(image, width=100)
     read_me_0 = st.markdown(new_title, unsafe_allow_html=False)
     read_me = st.markdown("""INFORMATION\n
+    Created by Dodam (Amelie) Yoon\n
     This is a prototype for a secured live video application with real time 
     facial recognition and deepfake detection. The prototype runs on XRP Ledger 
     technology, which secures each "transaction" (ie. video feed) with a hash 
